@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Простой чат</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Добавляем Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-gray-100">
+    <div x-data="chatApp" class="container mx-auto max-w-4xl p-4">
+        <!-- Форма авторизации -->
+        <template x-if="!isAuthenticated">
+            <div class="bg-white rounded-lg shadow-md p-6 mb-4">
+                <div class="flex justify-between mb-4">
+                    <button 
+                        @click="authMode = 'login'"
+                        :class="{'text-blue-500 font-bold': authMode === 'login'}"
+                        class="text-lg">Вход</button>
+                    <button 
+                        @click="authMode = 'register'"
+                        :class="{'text-blue-500 font-bold': authMode === 'register'}"
+                        class="text-lg">Регистрация</button>
+                </div>
+
+                <!-- Форма входа -->
+                <template x-if="authMode === 'login'">
+                    <form @submit.prevent="login" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Email</label>
+                            <input type="email" x-model="email" 
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2"
+                                   required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Пароль</label>
+                            <input type="password" x-model="password" 
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2"
+                                   required>
+                        </div>
+                        <button type="submit" 
+                                class="w-full bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
+                            Войти
+                        </button>
+                    </form>
+                </template>
+
+                <!-- Форма регистрации -->
+                <template x-if="authMode === 'register'">
+                    <form @submit.prevent="register" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Email</label>
+                            <input type="email" x-model="email" 
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2"
+                                   required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Имя пользователя</label>
+                            <input type="text" x-model="username" 
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2"
+                                   required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Пароль</label>
+                            <input type="password" x-model="password" 
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2"
+                                   required>
+                        </div>
+                        <button type="submit" 
+                                class="w-full bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600">
+                            Зарегистрироваться
+                        </button>
+                    </form>
+                </template>
+            </div>
+        </template>
+
+        <!-- Чат с сайдбаром -->
+        <template x-if="isAuthenticated">
+            <div class="relative">
+                <!-- Кнопка бургер -->
+                <button @click="sidebarOpen = !sidebarOpen" 
+                        class="fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-md hover:bg-gray-100">
+                    <i class="fas fa-bars text-gray-600"></i>
+                </button>
+
+                <!-- Сайдбар -->
+                <div x-show="sidebarOpen" 
+                     x-transition:enter="transition ease-out duration-300"
+                     x-transition:enter-start="-translate-x-full"
+                     x-transition:enter-end="translate-x-0"
+                     x-transition:leave="transition ease-in duration-300"
+                     x-transition:leave-start="translate-x-0"
+                     x-transition:leave-end="-translate-x-full"
+                     class="fixed top-0 left-0 h-full w-64 bg-white shadow-lg transform z-40">
+                    
+                    <!-- Заголовок сайдбара -->
+                    <div class="p-4 border-b">
+                        <h2 class="text-lg font-bold">Пользователи</h2>
+                    </div>
+
+                    <!-- Поиск -->
+                    <div class="p-4 border-b">
+                        <div class="relative">
+                            <input type="text" 
+                                   x-model="userSearch" 
+                                   @input="searchUsers"
+                                   placeholder="Поиск пользователей..." 
+                                   class="w-full pl-8 pr-4 py-2 border rounded-lg">
+                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                        </div>
+                    </div>
+
+                    <!-- Список пользователей -->
+                    <div class="overflow-y-auto h-[calc(100vh-8rem)]">
+                        <template x-for="user in filteredUsers" :key="user.id">
+                            <div @click="selectUser(user)" 
+                                 class="p-3 hover:bg-gray-100 cursor-pointer flex items-center space-x-3"
+                                 :class="{'bg-blue-50': selectedUser?.id === user.id}">
+                                <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                                    <i class="fas fa-user text-white"></i>
+                                </div>
+                                <div>
+                                    <div x-text="user.username" class="font-medium"></div>
+                                    <div x-text="user.email" class="text-sm text-gray-500"></div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Основной контент -->
+                <div :class="{'ml-64': sidebarOpen}" class="transition-margin duration-300">
+                    <div class="flex justify-between items-center mb-6">
+                        <div class="flex items-center space-x-4">
+                            <h1 class="text-2xl font-bold">Простой чат</h1>
+                            <template x-if="selectedUser">
+                                <div class="flex items-center space-x-2 text-gray-600">
+                                    <i class="fas fa-chevron-right"></i>
+                                    <span x-text="selectedUser.username"></span>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            <span x-text="currentUser.username" class="text-gray-600"></span>
+                            <button @click="logout" 
+                                    class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600">
+                                <i class="fas fa-sign-out-alt mr-2"></i>Выйти
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <template x-if="selectedUser">
+                        {% include 'components/message_user.html' %}
+                    </template>
+                    <template x-if="!selectedUser">
+                        <div class="flex items-center justify-center h-64 text-gray-500">
+                            <div class="text-center">
+                                <i class="fas fa-comments text-4xl mb-2"></i>
+                                <p>Выберите пользователя для начала общения</p>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('chatApp', () => ({
+                messages: [],
+                newMessage: '',
+                username: '',
+                isAuthenticated: false,
+                email: '',
+                password: '',
+                authMode: 'login',
+                currentUser: null,
+                sidebarOpen: false,
+                userSearch: '',
+                users: [],
+                filteredUsers: [],
+                selectedUser: null,
+                messageInterval: null,
+
+                init() {
+                    const credentials = localStorage.getItem('credentials')
+                    if (credentials) {
+                        this.checkAuth(credentials)
+                    }
+                },
+
+                async register() {
+                    try {
+                        const response = await fetch('/auth/register', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                email: this.email,
+                                password: this.password,
+                                username: this.username
+                            })
+                        })
+
+                        if (response.ok) {
+                            // После успешной регистрации выполняем вход
+                            await this.login()
+                        } else {
+                            const data = await response.json()
+                            alert(data.error || 'Ошибка регистрации')
+                        }
+                    } catch (e) {
+                        alert('Ошибка при регистрации')
+                    }
+                },
+
+                async checkAuth(credentials) {
+                    try {
+                        const response = await fetch('/auth/check', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Basic ${credentials}`
+                            }
+                        })
+                        const data = await response.json()
+                        this.isAuthenticated = response.ok
+                        if (this.isAuthenticated) {
+                            this.currentUser = data.user
+                            this.loadUsers() // Загружаем только список пользователей
+                        }
+                    } catch (e) {
+                        this.isAuthenticated = false
+                    }
+                },
+
+                async login() {
+                    const credentials = btoa(`${this.email}:${this.password}`)
+                    await this.checkAuth(credentials)
+                    if (this.isAuthenticated) {
+                        localStorage.setItem('credentials', credentials)
+                    } else {
+                        alert('Неверные учетные данные')
+                    }
+                },
+
+                logout() {
+                    if (this.messageInterval) {
+                        clearInterval(this.messageInterval)
+                    }
+                    this.isAuthenticated = false
+                    this.currentUser = null
+                    this.selectedUser = null
+                    this.messages = []
+                    localStorage.removeItem('credentials')
+                    this.email = ''
+                    this.password = ''
+                    this.username = ''
+                },
+
+                async loadMessages() {
+                    if (!this.selectedUser) return
+                    
+                    const credentials = localStorage.getItem('credentials')
+                    if (!credentials) return
+
+                    try {
+                        const response = await fetch(`/api/messages/${this.selectedUser.id}`, {
+                            headers: {
+                                'Authorization': `Basic ${credentials}`
+                            }
+                        })
+                        if (response.ok) {
+                            const messages = await response.json()
+                            this.messages = messages.sort((a, b) => 
+                                new Date(a.timestamp) - new Date(b.timestamp)
+                            )
+                        }
+                    } catch (e) {
+                        console.error('Error loading messages:', e)
+                    }
+                },
+
+                async sendMessage() {
+                    if (!this.newMessage.trim() || !this.selectedUser) return
+                    
+                    const credentials = localStorage.getItem('credentials')
+                    if (!credentials) return
+
+                    await fetch(`/api/messages/${this.selectedUser.id}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Basic ${credentials}`
+                        },
+                        body: JSON.stringify({ 
+                            text: this.newMessage
+                        })
+                    })
+                    
+                    this.newMessage = ''
+                    await this.loadMessages()
+                },
+
+                async loadUsers() {
+                    const credentials = localStorage.getItem('credentials')
+                    if (!credentials) return
+
+                    try {
+                        const response = await fetch('/api/users', {
+                            headers: {
+                                'Authorization': `Basic ${credentials}`
+                            }
+                        })
+                        if (response.ok) {
+                            this.users = await response.json()
+                            this.searchUsers()
+                        }
+                    } catch (e) {
+                        console.error('Error loading users:', e)
+                    }
+                },
+
+                searchUsers() {
+                    const searchTerm = this.userSearch.toLowerCase()
+                    this.filteredUsers = this.users.filter(user => 
+                        user.username.toLowerCase().includes(searchTerm) ||
+                        user.email.toLowerCase().includes(searchTerm)
+                    )
+                },
+
+                selectUser(user) {
+                    if (this.messageInterval) {
+                        clearInterval(this.messageInterval)
+                    }
+                    
+                    this.selectedUser = user
+                    this.loadMessages()
+                    
+                    this.messageInterval = setInterval(() => {
+                        if (this.selectedUser?.id === user.id) {
+                            this.loadMessages()
+                        }
+                    }, 3000)
+                }
+            }))
+        })
+    </script>
+</body>
+</html> 
