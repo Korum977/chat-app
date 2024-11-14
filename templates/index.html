@@ -1,15 +1,26 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" :class="{'dark': isDarkMode}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Простой чат</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        // Добавьте свои цвета если нужно
+                    }
+                }
+            }
+        }
+    </script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <!-- Добавляем Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
-<body class="bg-gray-100">
+<body class="bg-gray-100 dark:bg-gray-900 transition-colors duration-200">
     <div x-data="chatApp" class="container mx-auto max-w-4xl p-4">
         <!-- Форма авторизации -->
         <template x-if="!isAuthenticated">
@@ -135,16 +146,20 @@
                 <div :class="{'ml-64': sidebarOpen}" class="transition-margin duration-300">
                     <div class="flex justify-between items-center mb-6">
                         <div class="flex items-center space-x-4">
-                            <h1 class="text-2xl font-bold">Простой чат</h1>
+                            <h1 class="text-2xl font-bold dark:text-white">Простой чат</h1>
                             <template x-if="selectedUser">
-                                <div class="flex items-center space-x-2 text-gray-600">
+                                <div class="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
                                     <i class="fas fa-chevron-right"></i>
                                     <span x-text="selectedUser.username"></span>
                                 </div>
                             </template>
                         </div>
                         <div class="flex items-center space-x-4">
-                            <span x-text="currentUser.username" class="text-gray-600"></span>
+                            <button @click="showSettings = true" 
+                                    class="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200">
+                                <i class="fas fa-cog"></i>
+                            </button>
+                            <span x-text="currentUser.username" class="text-gray-600 dark:text-gray-400"></span>
                             <button @click="logout" 
                                     class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600">
                                 <i class="fas fa-sign-out-alt mr-2"></i>Выйти
@@ -166,6 +181,9 @@
                 </div>
             </div>
         </template>
+
+        <!-- Модальное окно настроек -->
+        {% include 'components/settings_modal.html' %}
     </div>
 
     <script>
@@ -185,12 +203,15 @@
                 filteredUsers: [],
                 selectedUser: null,
                 messageInterval: null,
+                showSettings: false,
+                isDarkMode: localStorage.getItem('darkMode') === 'true',
 
                 init() {
                     const credentials = localStorage.getItem('credentials')
                     if (credentials) {
                         this.checkAuth(credentials)
                     }
+                    this.applyTheme()
                 },
 
                 async register() {
@@ -346,6 +367,20 @@
                             this.loadMessages()
                         }
                     }, 3000)
+                },
+
+                toggleTheme() {
+                    this.isDarkMode = !this.isDarkMode
+                    localStorage.setItem('darkMode', this.isDarkMode)
+                    this.applyTheme()
+                },
+
+                applyTheme() {
+                    if (this.isDarkMode) {
+                        document.documentElement.classList.add('dark')
+                    } else {
+                        document.documentElement.classList.remove('dark')
+                    }
                 }
             }))
         })
