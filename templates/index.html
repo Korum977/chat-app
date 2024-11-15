@@ -385,5 +385,70 @@
             }))
         })
     </script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Обработчик загрузки аватара
+        const avatarInput = document.getElementById('avatarInput');
+        const avatarPreview = document.getElementById('avatarPreview');
+
+        avatarInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                // Создаем FormData для отправки файла
+                const formData = new FormData();
+                formData.append('avatar', file);
+
+                // Отправляем файл на сервер
+                fetch('/upload_avatar', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        avatarPreview.src = data.avatar_url;
+                        alert('Аватар успешно обновлен!');
+                    } else {
+                        alert('Ошибка при загрузке аватара');
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                    alert('Произошла ошибка при загрузке');
+                });
+            }
+        });
+
+        // Обработчик загрузки фона
+        const backgroundInput = document.getElementById('backgroundInput');
+
+        backgroundInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const formData = new FormData();
+                formData.append('background', file);
+
+                fetch('/upload_background', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Обновляем фон страницы
+                        document.body.style.backgroundImage = `url(${data.background_url})`;
+                        alert('Фон успешно обновлен!');
+                    } else {
+                        alert('Ошибка при загрузке фона');
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                    alert('Произошла ошибка при загрузке');
+                });
+            }
+        });
+    });
+    </script>
 </body>
 </html> 

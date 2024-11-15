@@ -2,10 +2,22 @@ from flask import Flask, render_template, jsonify, request, g
 from db import Database
 from auth import Auth
 import sqlite3
+import os
+from werkzeug.utils import secure_filename
+import uuid
 
 app = Flask(__name__)
 db = Database('chat.db')
 auth = Auth(db)
+
+# Настройки для загрузки файлов
+UPLOAD_FOLDER = 'static/uploads'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @app.errorhandler(sqlite3.OperationalError)
 def handle_db_error(e):
@@ -100,6 +112,66 @@ def create_message_for_user(recipient_id):
         'status': 'success',
         'message_id': message_id
     })
+
+@app.route('/upload_avatar', methods=['POST'])
+def upload_avatar():
+    if 'avatar' not in request.files:
+        return jsonify({'success': False, 'error': 'Файл не найден'})
+    
+    file = request.files['avatar']
+    if file.filename == '':
+        return jsonify({'success': False, 'error': 'Файл не выбран'})
+    
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        # Добавляем уникальный идентификатор к имени файла
+        unique_filename = f"avatar_{str(uuid.uuid4())}_{filename}"
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+        
+        # Создаем директорию, если она не существует
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        
+        file.save(filepath)
+        
+        # Сохраняем путь к файлу в базе данных для пользователя
+        # user.avatar_url = f'/static/uploads/{unique_filename}'
+        # db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'avatar_url': f'/static/uploads/{unique_filename}'
+        })
+    
+    return jsonify({'success': False, 'error': 'Недопустимый тип файла'})
+
+@app.route('/upload_background', methods=['POST'])
+def upload_background():
+    if 'background' not in request.files:
+        return jsonify({'success': False, 'error': 'Файл не найден'})
+    
+    file = request.files['background']
+    if file.filename == '':
+        return jsonify({'success': False, 'error': 'Файл не выбран'})
+    
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        unique_filename = f"background_{str(uuid.uuid4())}_{filename}"
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+        
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        
+        file.save(filepath)
+        
+        # Сохраняем путь к файлу в базе данных для пользователя
+        # user.background_url = f'/static/uploads/{unique_filename}'
+        # db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'background_url': f'/static/uploads/{unique_filename}'
+        })
+    
+    return jsonify({'success': False, 'error': 'Недопустимый тип файла'})
 
 if __name__ == '__main__':
     app.run(debug=True) 
