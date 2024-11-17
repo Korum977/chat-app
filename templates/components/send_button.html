@@ -1,0 +1,11 @@
+<button 
+    type="submit"
+    :disabled="!newMessage.trim()"
+    :class="{
+        'bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700': newMessage.trim(),
+        'bg-gray-300 dark:bg-gray-600 cursor-not-allowed': !newMessage.trim()
+    }"
+    class="px-6 py-3 rounded-lg text-white transition-colors duration-200 flex items-center gap-2 min-w-[120px] justify-center">
+    <i class="fas fa-paper-plane"></i>
+    <span>Отправить</span>
+</button> 
