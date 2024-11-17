@@ -1,0 +1,498 @@
+<script>
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('hashSync', () => ({
+            open: false,
+            
+            initHashSync() {
+                const hash = window.location.hash.replace('#', '');
+                if (hash === 'menu') {
+                    this.open = true;
+                }
+
+                this.$watch('open', value => {
+                    const newUrl = new URL(window.location.href);
+                    if (value) {
+                        newUrl.hash = 'menu';
+                    } else {
+                        newUrl.hash = '';
+                    }
+                    history.pushState(null, '', newUrl.toString());
+                });
+
+                window.addEventListener('popstate', () => {
+                    const hash = window.location.hash.replace('#', '');
+                    this.open = (hash === 'menu');
+                });
+            }
+        }));
+
+        Alpine.data('chatApp', () => ({
+            messages: [],
+            newMessage: '',
+            username: '',
+            isAuthenticated: false,
+            email: '',
+            password: '', 
+            authMode: 'login',
+            currentUser: null,
+            sidebarOpen: window.innerWidth >= 768,
+            userSearch: '',
+            users: [],
+            filteredUsers: [],
+            selectedUser: null,
+            messageInterval: null,
+            showSettings: false,
+            isDarkMode: localStorage.getItem('darkMode') === 'true',
+            avatar: null,
+            colorScheme: 'blue',
+            messageStyle: 'solid',
+            replyingTo: null,
+            chatContainer: null,
+
+            init() {
+                try {
+                    const credentials = localStorage.getItem('credentials')
+                    if (credentials) {
+                        this.checkAuth(credentials)
+                    }
+                    this.applyTheme()
+                    
+                    this.colorScheme = localStorage.getItem('colorScheme') || 'blue';
+                    this.messageStyle = localStorage.getItem('messageStyle') || 'solid';
+                    
+                    if (this.isAuthenticated) {
+                        this.loadAvatar();
+                        
+                        const hash = window.location.hash;
+                        const match = hash.match(/#\/chat\/(\d+)/);
+                        const initialUserId = match ? parseInt(match[1]) : null;
+                        
+                        if (initialUserId) {
+                            const user = this.users.find(u => u.id === initialUserId);
+                            if (user) {
+                                this.selectUser(user, false);
+                            }
+                        }
+                    }
+
+                    window.addEventListener('resize', () => {
+                        if (window.innerWidth >= 768) {
+                            this.sidebarOpen = true;
+                        }
+                    });
+
+                    window.addEventListener('popstate', () => {
+                        const hash = window.location.hash;
+                        const match = hash.match(/#\/chat\/(\d+)/);
+                        const userId = match ? parseInt(match[1]) : null;
+                        
+                        if (userId) {
+                            const user = this.users.find(u => u.id === userId);
+                            if (user) {
+                                this.selectUser(user, false);
+                            }
+                        } else {
+                            this.selectedUser = null;
+                            if (this.messageInterval) {
+                                clearInterval(this.messageInterval);
+                            }
+                        }
+                    });
+
+                } catch (err) {
+                    console.error('Error in init:', err);
+                }
+            },
+
+            async register() {
+                try {
+                    const response = await fetch('/auth/register', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            email: this.email,
+                            password: this.password,
+                            username: this.username
+                        })
+                    })
+
+                    if (response.ok) {
+                        await this.login()
+                    } else {
+                        const data = await response.json()
+                        alert(data.error || 'Ошибка регистрации')
+                    }
+                } catch (e) {
+                    alert('Ошибка при регистрации')
+                }
+            },
+
+            async checkAuth(credentials) {
+                try {
+                    const response = await fetch('/auth/check', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Basic ${credentials}`
+                        }
+                    })
+                    const data = await response.json()
+                    this.isAuthenticated = response.ok
+                    if (this.isAuthenticated) {
+                        this.currentUser = data.user
+                        this.loadUsers()
+                        this.loadAvatar()
+                    }
+                } catch (e) {
+                    this.isAuthenticated = false
+                }
+            },
+
+            async login() {
+                const credentials = btoa(`${this.email}:${this.password}`)
+                await this.checkAuth(credentials)
+                if (this.isAuthenticated) {
+                    localStorage.setItem('credentials', credentials)
+                } else {
+                    alert('Неверные учетные данные')
+                }
+            },
+
+            logout() {
+                try {
+                    if (this.messageInterval) {
+                        clearInterval(this.messageInterval)
+                    }
+                    this.isAuthenticated = false
+                    this.currentUser = null
+                    this.selectedUser = null
+                    this.messages = []
+                    localStorage.removeItem('credentials')
+                    this.email = ''
+                    this.password = ''
+                    this.username = ''
+                    history.pushState(null, '', '#/')
+                } catch (err) {
+                    console.error('Error in logout:', err);
+                }
+            },
+
+            async loadMessages() {
+                if (!this.selectedUser) return
+                
+                const credentials = localStorage.getItem('credentials')
+                if (!credentials) return
+
+                try {
+                    const response = await fetch(`/api/messages/${this.selectedUser.id}`, {
+                        headers: {
+                            'Authorization': `Basic ${credentials}`
+                        }
+                    })
+                    if (response.ok) {
+                        const messages = await response.json()
+                        this.messages = messages.map(message => ({
+                            ...message,
+                            reply_to: message.reply_to ? {
+                                id: message.reply_to.id,
+                                text: message.reply_to.text,
+                                username: message.reply_to.username
+                            } : null
+                        })).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+                    }
+                } catch (e) {
+                    console.error('Error loading messages:', e)
+                }
+            },
+
+            async sendMessage() {
+                if (!this.newMessage.trim()) return;
+                
+                try {
+                    const credentials = localStorage.getItem('credentials')
+                    if (!credentials) return
+                    
+                    const response = await fetch(`/api/messages/${this.selectedUser.id}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Basic ${credentials}`
+                        },
+                        body: JSON.stringify({
+                            text: this.newMessage.trim(),
+                            reply_to_id: this.replyingTo?.id
+                        })
+                    });
+
+                    if (response.ok) {
+                        const message = await response.json();
+                        this.messages.push(message);
+                        this.newMessage = '';
+                        this.replyingTo = null;
+                        this.$nextTick(() => {
+                            this.$refs.messageInput.style.height = '48px';
+                            this.scrollToBottom();
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error sending message:', error);
+                }
+            },
+
+            async loadUsers() {
+                const credentials = localStorage.getItem('credentials')
+                if (!credentials) return
+
+                try {
+                    const response = await fetch('/api/users', {
+                        headers: {
+                            'Authorization': `Basic ${credentials}`
+                        }
+                    })
+                    if (response.ok) {
+                        this.users = await response.json()
+                        this.searchUsers()
+                    }
+                } catch (e) {
+                    console.error('Error loading users:', e)
+                }
+            },
+
+            searchUsers() {
+                try {
+                    const searchTerm = this.userSearch.toLowerCase()
+                    this.filteredUsers = this.users.filter(user => 
+                        user.username.toLowerCase().includes(searchTerm) ||
+                        user.email.toLowerCase().includes(searchTerm)
+                    )
+                } catch (err) {
+                    console.error('Error in searchUsers:', err);
+                    this.filteredUsers = [];
+                }
+            },
+
+            selectUser(user, updateUrl = true) {
+                try {
+                    if (this.messageInterval) {
+                        clearInterval(this.messageInterval)
+                    }
+                    
+                    this.selectedUser = user
+                    this.loadMessages()
+                    
+                    if (updateUrl) {
+                        history.pushState(null, '', `#/chat/${user.id}`);
+                    }
+                    
+                    this.messageInterval = setInterval(() => {
+                        if (this.selectedUser?.id === user.id) {
+                            this.loadMessages()
+                        }
+                    }, 3000)
+
+                    if (window.innerWidth < 768) {
+                        this.sidebarOpen = false
+                    }
+                } catch (err) {
+                    console.error('Error in selectUser:', err);
+                }
+            },
+
+            toggleTheme() {
+                try {
+                    this.isDarkMode = !this.isDarkMode
+                    localStorage.setItem('darkMode', this.isDarkMode)
+                    this.applyTheme()
+                } catch (err) {
+                    console.error('Error toggling theme:', err);
+                }
+            },
+
+            applyTheme() {
+                try {
+                    if (this.isDarkMode) {
+                        document.documentElement.classList.add('dark')
+                    } else {
+                        document.documentElement.classList.remove('dark')
+                    }
+                } catch (err) {
+                    console.error('Error applying theme:', err);
+                }
+            },
+
+            autoGrow(element) {
+                try {
+                    element.style.height = 'auto';
+                    element.style.height = (element.scrollHeight) + 'px';
+                } catch (err) {
+                    console.error('Error in autoGrow:', err);
+                }
+            },
+
+            setMessageStyle(style) {
+                try {
+                    this.messageStyle = style;
+                    localStorage.setItem('messageStyle', style);
+                } catch (err) {
+                    console.error('Error setting message style:', err);
+                }
+            },
+
+            setColorScheme(scheme) {
+                try {
+                    this.colorScheme = scheme;
+                    localStorage.setItem('colorScheme', scheme);
+                } catch (err) {
+                    console.error('Error setting color scheme:', err);
+                }
+            },
+
+            async handleAvatarUpload(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    const formData = new FormData();
+                    formData.append('avatar', file);
+
+                    try {
+                        const credentials = localStorage.getItem('credentials');
+                        const response = await fetch('/upload_avatar', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Basic ${credentials}`
+                            },
+                            body: formData
+                        });
+
+                        const data = await response.json();
+                        if (data.success) {
+                            this.avatar = data.avatar_url;
+                            this.currentUser.avatar = data.avatar_url;
+                        } else {
+                            alert('Ошибка при загрузке аватара');
+                        }
+                    } catch (error) {
+                        console.error('Ошибка:', error);
+                        alert('Произошла ошибка при загрузке');
+                    }
+                }
+            },
+
+            async removeAvatar() {
+                try {
+                    const credentials = localStorage.getItem('credentials');
+                    const response = await fetch('/remove_avatar', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Basic ${credentials}`
+                        }
+                    });
+
+                    const data = await response.json();
+                    if (data.success) {
+                        this.avatar = null;
+                        this.currentUser.avatar = null;
+                    }
+                } catch (error) {
+                    console.error('Ошибка:', error);
+                    alert('Произошла ошибка при удалении аватара');
+                }
+            },
+
+            async loadAvatar() {
+                try {
+                    const credentials = localStorage.getItem('credentials');
+                    const response = await fetch('/get_avatar', {
+                        headers: {
+                            'Authorization': `Basic ${credentials}`
+                        }
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        this.avatar = data.avatar_url;
+                        if (this.currentUser) {
+                            this.currentUser.avatar = data.avatar_url;
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error loading avatar:', error);
+                }
+            },
+
+            replyToMessage(message) {
+                this.replyingTo = message;
+                this.$refs.messageInput.focus();
+            },
+
+            cancelReply() {
+                this.replyingTo = null;
+            },
+
+            scrollToBottom() {
+                const chatContainer = this.$refs.chatContainer;
+                if (chatContainer) {
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                }
+            }
+        }))
+    })
+
+    function getMessageContainerClasses(message, currentUser, messageStyle, colorScheme) {
+        const baseClasses = "mb-4 p-3 rounded-2xl max-w-[80%] transition-all duration-200 hover:shadow-md";
+        const alignmentClass = message.user_id !== currentUser.id ? 'mr-auto' : 'ml-auto';
+        
+        const styleClasses = {
+            solid: getSolidStyleClasses(message, currentUser, colorScheme),
+            gradient: getGradientStyleClasses(message, currentUser, colorScheme),
+            pattern1: getPatternStyleClasses(message, currentUser, colorScheme),
+            pattern2: getPatternStyleClasses(message, currentUser, colorScheme)
+        };
+
+        return `${baseClasses} ${alignmentClass} ${styleClasses[messageStyle] || ''}`;
+    }
+
+    function getSolidStyleClasses(message, currentUser, colorScheme) {
+        if (message.user_id !== currentUser.id) {
+            return 'bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600';
+        }
+        
+        const schemes = {
+            blue: 'bg-blue-50 dark:bg-blue-900 hover:bg-blue-100 dark:hover:bg-blue-800',
+            green: 'bg-green-50 dark:bg-green-900 hover:bg-green-100 dark:hover:bg-green-800',
+            purple: 'bg-purple-50 dark:bg-purple-900 hover:bg-purple-100 dark:hover:bg-purple-800',
+            pink: 'bg-pink-50 dark:bg-pink-900 hover:bg-pink-100 dark:hover:bg-pink-800'
+        };
+        
+        return schemes[colorScheme];
+    }
+
+    function getGradientStyleClasses(message, currentUser, colorScheme) {
+        if (message.user_id !== currentUser.id) {
+            return 'bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-600';
+        }
+        
+        const schemes = {
+            blue: 'bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-800',
+            green: 'bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900 dark:to-green-800',
+            purple: 'bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900 dark:to-purple-800',
+            pink: 'bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-900 dark:to-pink-800'
+        };
+        
+        return schemes[colorScheme];
+    }
+
+    function getPatternStyleClasses(message, currentUser, colorScheme) {
+        if (message.user_id !== currentUser.id) {
+            return 'bg-gray-50 dark:bg-gray-700 bg-opacity-90 dark:bg-opacity-90';
+        }
+        
+        const schemes = {
+            blue: 'bg-blue-50 dark:bg-blue-900 bg-opacity-90 dark:bg-opacity-90',
+            green: 'bg-green-50 dark:bg-green-900 bg-opacity-90 dark:bg-opacity-90',
+            purple: 'bg-purple-50 dark:bg-purple-900 bg-opacity-90 dark:bg-opacity-90',
+            pink: 'bg-pink-50 dark:bg-pink-900 bg-opacity-90 dark:bg-opacity-90'
+        };
+        
+        return schemes[colorScheme];
+    }
+</script>

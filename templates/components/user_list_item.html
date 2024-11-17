@@ -1,0 +1,13 @@
+<div @click="selectUser(user)" 
+     class="p-3 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer flex items-center space-x-3"
+     :class="{'bg-blue-50 dark:bg-blue-900': selectedUser?.id === user.id}">
+    <div class="relative w-8 h-8">
+        <img :src="user.avatar_url || `https://ui-avatars.com/api/?name=${user.username}`"
+             class="w-8 h-8 rounded-full object-cover border-2 dark:border-gray-600"
+             :alt="user.username">
+    </div>
+    <div>
+        <div x-text="user.username" class="font-medium text-gray-900 dark:text-white"></div>
+        <div x-text="user.email" class="text-sm text-gray-500 dark:text-gray-400"></div>
+    </div>
+</div> 

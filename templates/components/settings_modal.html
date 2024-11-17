@@ -1,10 +1,9 @@
 <div x-show="showSettings" 
      class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"
      @click.self="showSettings = false">
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-[480px] max-h-[80vh] overflow-y-auto transform transition-all"
-         :class="{'dark': isDarkMode}">
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-[480px] max-h-[80vh] overflow-y-auto transform transition-all">
         <div class="flex justify-between items-center mb-4">
-            <h3 class="text-lg font-bold dark:text-white">Настройки</h3>
+            <h3 class="text-lg font-bold text-gray-900 dark:text-white">Настройки</h3>
             <button @click="showSettings = false" 
                     class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
                 <i class="fas fa-times"></i>
@@ -12,16 +11,25 @@
         </div>
         
         <div class="space-y-6">
+            <!-- Hidden file input for avatar -->
+            <input type="file" 
+                   x-ref="avatarInput"
+                   @change="handleAvatarUpload"
+                   accept="image/*"
+                   class="hidden">
+
             <!-- Аватар -->
             <div class="space-y-2">
                 <span class="text-gray-700 dark:text-gray-300 block">Аватар</span>
                 <div class="flex items-center space-x-4">
                     <div class="relative w-16 h-16">
-                        <img :src="avatar || 'https://ui-avatars.com/api/?name=' + currentUser.username" 
-                             class="w-16 h-16 rounded-full object-cover border-2"
-                             :class="colorScheme === 'blue' ? 'border-blue-500' : 
-                                    colorScheme === 'green' ? 'border-green-500' :
-                                    colorScheme === 'purple' ? 'border-purple-500' : 'border-pink-500'">
+                        <img :src="currentUser?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser?.username || '')}`" 
+                             :class="clsx('w-16 h-16 rounded-full object-cover border-2', {
+                                'border-blue-500 dark:border-blue-400': colorScheme === 'blue',
+                                'border-green-500 dark:border-green-400': colorScheme === 'green', 
+                                'border-purple-500 dark:border-purple-400': colorScheme === 'purple',
+                                'border-pink-500 dark:border-pink-400': colorScheme === 'pink'
+                             })">
                         <input type="file" 
                                @change="handleAvatarUpload"
                                accept="image/*"
@@ -29,12 +37,12 @@
                     </div>
                     <div class="flex flex-col">
                         <button @click="$refs.avatarInput.click()" 
-                                class="text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400">
+                                class="text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300">
                             Изменить аватар
                         </button>
                         <button x-show="avatar" 
                                 @click="removeAvatar" 
-                                class="text-sm text-red-500 hover:text-red-600 mt-1">
+                                class="text-sm text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 mt-1">
                             Удалить
                         </button>
                     </div>
@@ -46,24 +54,32 @@
                 <span class="text-gray-700 dark:text-gray-300 block">Фон сообщений</span>
                 <div class="grid grid-cols-4 gap-2">
                     <button @click="setMessageStyle('solid')"
-                            class="w-12 h-12 rounded-lg border-2 bg-gray-100 dark:bg-gray-700 transition-all duration-200"
-                            :class="messageStyle === 'solid' ? 'border-blue-500 scale-110' : 'border-transparent'">
+                            :class="clsx('w-12 h-12 rounded-lg border-2 bg-gray-100 dark:bg-gray-700 transition-all duration-200', {
+                                'border-blue-500 dark:border-blue-400 scale-110': messageStyle === 'solid',
+                                'border-transparent': messageStyle !== 'solid'
+                            })">
                         <i class="fas fa-square"></i>
                     </button>
                     <button @click="setMessageStyle('gradient')"
-                            class="w-12 h-12 rounded-lg border-2 transition-all duration-200"
-                            :class="messageStyle === 'gradient' ? 'border-blue-500 scale-110' : 'border-transparent'"
+                            :class="clsx('w-12 h-12 rounded-lg border-2 transition-all duration-200', {
+                                'border-blue-500 dark:border-blue-400 scale-110': messageStyle === 'gradient',
+                                'border-transparent': messageStyle !== 'gradient'
+                            })"
                             style="background: linear-gradient(45deg, #f3f4f6, #e5e7eb)">
                         <i class="fas fa-gradient"></i>
                     </button>
                     <button @click="setMessageStyle('pattern1')"
-                            class="w-12 h-12 rounded-lg border-2 transition-all duration-200 bg-opacity-20"
-                            :class="messageStyle === 'pattern1' ? 'border-blue-500 scale-110' : 'border-transparent'"
+                            :class="clsx('w-12 h-12 rounded-lg border-2 transition-all duration-200 bg-opacity-20', {
+                                'border-blue-500 dark:border-blue-400 scale-110': messageStyle === 'pattern1',
+                                'border-transparent': messageStyle !== 'pattern1'
+                            })"
                             style="background-image: url('data:image/svg+xml,%3Csvg width=\'20\' height=\'20\' viewBox=\'0 0 20 20\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'%239C92AC\' fill-opacity=\'0.2\' fill-rule=\'evenodd\'%3E%3Ccircle cx=\'3\' cy=\'3\' r=\'3\'/%3E%3Ccircle cx=\'13\' cy=\'13\' r=\'3\'/%3E%3C/g%3E%3C/svg%3E');">
                     </button>
                     <button @click="setMessageStyle('pattern2')"
-                            class="w-12 h-12 rounded-lg border-2 transition-all duration-200 bg-opacity-20"
-                            :class="messageStyle === 'pattern2' ? 'border-blue-500 scale-110' : 'border-transparent'"
+                            :class="clsx('w-12 h-12 rounded-lg border-2 transition-all duration-200 bg-opacity-20', {
+                                'border-blue-500 dark:border-blue-400 scale-110': messageStyle === 'pattern2',
+                                'border-transparent': messageStyle !== 'pattern2'
+                            })"
                             style="background-image: url('data:image/svg+xml,%3Csvg width=\'20\' height=\'20\' viewBox=\'0 0 20 20\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M0 0h20v20H0V0zm10 17L3 5h14L10 17z\' fill=\'%239C92AC\' fill-opacity=\'0.2\' fill-rule=\'evenodd\'/%3E%3C/svg%3E');">
                     </button>
                 </div>
@@ -73,11 +89,15 @@
             <div class="flex items-center justify-between">
                 <span class="text-gray-700 dark:text-gray-300">Темная тема</span>
                 <button @click="toggleTheme()" 
-                        class="relative inline-flex items-center h-6 rounded-full w-11"
-                        :class="isDarkMode ? 'bg-blue-600' : 'bg-gray-200'">
+                        :class="clsx('relative inline-flex items-center h-6 rounded-full w-11', {
+                            'bg-blue-600 dark:bg-blue-500': isDarkMode,
+                            'bg-gray-200 dark:bg-gray-600': !isDarkMode
+                        })">
                     <span class="sr-only">Включить темную тему</span>
-                    <span class="inline-block w-4 h-4 transform transition-transform bg-white rounded-full"
-                          :class="isDarkMode ? 'translate-x-6' : 'translate-x-1'">
+                    <span :class="clsx('inline-block w-4 h-4 transform transition-transform bg-white rounded-full', {
+                            'translate-x-6': isDarkMode,
+                            'translate-x-1': !isDarkMode
+                        })">
                     </span>
                 </button>
             </div>
@@ -87,27 +107,35 @@
                 <span class="text-gray-700 dark:text-gray-300 block">Цветовая схема</span>
                 <div class="grid grid-cols-4 gap-2">
                     <button @click="setColorScheme('blue')"
-                            class="w-12 h-12 rounded-lg border-2 transition-all duration-200"
-                            :class="colorScheme === 'blue' ? 'border-blue-500 scale-110' : 'border-transparent'"
+                            :class="clsx('w-12 h-12 rounded-lg border-2 transition-all duration-200', {
+                                'border-blue-500 dark:border-blue-400 scale-110': colorScheme === 'blue',
+                                'border-transparent': colorScheme !== 'blue'
+                            })"
                             style="background: linear-gradient(45deg, #3B82F6, #60A5FA)">
                     </button>
                     <button @click="setColorScheme('green')"
-                            class="w-12 h-12 rounded-lg border-2 transition-all duration-200"
-                            :class="colorScheme === 'green' ? 'border-green-500 scale-110' : 'border-transparent'"
+                            :class="clsx('w-12 h-12 rounded-lg border-2 transition-all duration-200', {
+                                'border-green-500 dark:border-green-400 scale-110': colorScheme === 'green',
+                                'border-transparent': colorScheme !== 'green'
+                            })"
                             style="background: linear-gradient(45deg, #10B981, #34D399)">
                     </button>
                     <button @click="setColorScheme('purple')"
-                            class="w-12 h-12 rounded-lg border-2 transition-all duration-200"
-                            :class="colorScheme === 'purple' ? 'border-purple-500 scale-110' : 'border-transparent'"
+                            :class="clsx('w-12 h-12 rounded-lg border-2 transition-all duration-200', {
+                                'border-purple-500 dark:border-purple-400 scale-110': colorScheme === 'purple',
+                                'border-transparent': colorScheme !== 'purple'
+                            })"
                             style="background: linear-gradient(45deg, #8B5CF6, #A78BFA)">
                     </button>
                     <button @click="setColorScheme('pink')"
-                            class="w-12 h-12 rounded-lg border-2 transition-all duration-200"
-                            :class="colorScheme === 'pink' ? 'border-pink-500 scale-110' : 'border-transparent'"
+                            :class="clsx('w-12 h-12 rounded-lg border-2 transition-all duration-200', {
+                                'border-pink-500 dark:border-pink-400 scale-110': colorScheme === 'pink',
+                                'border-transparent': colorScheme !== 'pink'
+                            })"
                             style="background: linear-gradient(45deg, #EC4899, #F472B6)">
                     </button>
                 </div>
             </div>
         </div>
     </div>
-</div> 
+</div>
